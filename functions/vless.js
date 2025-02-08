@@ -1,5 +1,6 @@
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const net = require('net');
 
 // VLESS 协议配置
 const userID = "8d4a8f38-2d9c-4e3d-b35e-90c01872c61d"; // 替换为你的 UUID
@@ -137,6 +138,43 @@ function handleDataTransfer(ws, command, address, port) {
       console.error('Unsupported command:', command);
       ws.close();
   }
+}
+
+// 处理 TCP 数据传输
+function handleTCPTransfer(ws, address, port) {
+  const targetSocket = net.createConnection({ host: address, port: port });
+
+  targetSocket.on('connect', () => {
+    console.log(`Connected to ${address}:${port}`);
+  });
+
+  targetSocket.on('data', (data) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(data);
+    }
+  });
+
+  targetSocket.on('end', () => {
+    ws.close();
+  });
+
+  targetSocket.on('error', (err) => {
+    console.error('Target socket error:', err);
+    ws.close();
+  });
+
+  ws.on('message', (message) => {
+    targetSocket.write(message);
+  });
+
+  ws.on('close', () => {
+    targetSocket.end();
+  });
+
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
+    targetSocket.end();
+  });
 }
 
 // 获取 VLESS 配置信息
