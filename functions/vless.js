@@ -153,6 +153,8 @@ function getVLESSConfig(userID, host) {
     path: '/vless',
   };
 
+  const vlessURL = `vless://${userID}@${host}:443?encryption=none&security=tls&type=ws&path=/vless#${host}`;
+
   return `
 <!DOCTYPE html>
 <html>
@@ -162,7 +164,7 @@ function getVLESSConfig(userID, host) {
 <body>
   <h2>VLESS Configuration</h2>
   <pre>${JSON.stringify(config, null, 2)}</pre>
-  <p>VLESS URL: vless://${userID}@${host}:443?encryption=none&security=tls&type=ws&path=/vless#${host}</p>
+  <p>VLESS URL: <a href="${vlessURL}">${vlessURL}</a></p>
 </body>
 </html>
   `;
