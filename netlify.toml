@@ -1,0 +1,8 @@
+[build]
+  functions = "functions"  # 指定 Netlify Functions 目录
+
+[[redirects]]
+  from = "/.netlify/functions/proxy"
+  to = "/.netlify/functions/proxy"
+  status = 200
+  force = true

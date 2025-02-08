@@ -1,0 +1,9 @@
+{
+  "name": "my-proxy",
+  "version": "1.0.0",
+  "description": "A simple WebSocket proxy for Netlify Functions",
+  "dependencies": {
+    "ws": "^8.13.0",      
+    "net": "^1.0.2"       
+  }
+}
