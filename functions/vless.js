@@ -3,8 +3,43 @@ const crypto = require('crypto');
 const net = require('net');
 
 // VLESS 协议配置
-const userID = "8d4a8f38-2d9c-4e3d-b35e-90c01872c61d"; // 替换为你的 UUID
-const hostName = "tunnel-liuyq.netlify.app"; // 替换为你的域名
+const userID = "86c50e3a-5b87-49dd-bd20-03c7f2735e40"; // 替换为你的 UUID
+const proxyIPs = ["ts.hpc.tw"];
+const cn_hostnames = [''];
+let CDNIP = 'www.visa.com.sg';
+let IP1 = 'www.visa.com';
+let IP2 = 'cis.visa.com';
+let IP3 = 'africa.visa.com';
+let IP4 = 'www.visa.com.sg';
+let IP5 = 'www.visaeurope.at';
+let IP6 = 'www.visa.com.mt';
+let IP7 = 'qa.visamiddleeast.com';
+let IP8 = 'usa.visa.com';
+let IP9 = 'myanmar.visa.com';
+let IP10 = 'www.visa.com.tw';
+let IP11 = 'www.visaeurope.ch';
+let IP12 = 'www.visa.com.br';
+let IP13 = 'www.visasoutheasteurope.com';
+let PT1 = '80';
+let PT2 = '8080';
+let PT3 = '8880';
+let PT4 = '2052';
+let PT5 = '2082';
+let PT6 = '2086';
+let PT7 = '2095';
+let PT8 = '443';
+let PT9 = '8443';
+let PT10 = '2053';
+let PT11 = '2083';
+let PT12 = '2087';
+let PT13 = '2096';
+
+let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
+let proxyPort = proxyIP.includes(':') ? proxyIP.split(':')[1] : '443';
+
+if (!isValidUUID(userID)) {
+  throw new Error("uuid is not valid");
+}
 
 exports.handler = async (event, context) => {
   try {
@@ -224,5 +259,11 @@ async function handleWebSocketUpgrade(event, wss) {
     headers,
     body: ''
   };
+}
+
+// 验证 UUID
+function isValidUUID(uuid) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 }
 
