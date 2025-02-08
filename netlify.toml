@@ -6,9 +6,12 @@
   directory = "functions"
   node_bundler = "esbuild"
   external_node_modules = ["ws"]
+  included_files = ["functions/**/*.js"]
 
 [build.environment]
   NODE_VERSION = "18"
+  NODE_ENV = "development"
+  DEBUG = "true"
 
 [[redirects]]
   from = "/vless/*"

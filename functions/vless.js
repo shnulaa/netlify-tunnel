@@ -54,37 +54,139 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // WebSocket 处理
-    if(url.pathname.includes('/pyip=')) {
-      const tmp_ip = url.pathname.split("=")[1];
-      if(isValidIP(tmp_ip)) {
-        proxyIP = tmp_ip;
-        if (proxyIP.includes(']:')) {
-          let lastColonIndex = proxyIP.lastIndexOf(':');
-          proxyPort = proxyIP.slice(lastColonIndex + 1);
-          proxyIP = proxyIP.slice(0, lastColonIndex);	
-        } else if (!proxyIP.includes(']:') && !proxyIP.includes(']')) {
-          [proxyIP, proxyPort = '443'] = proxyIP.split(':');
-        } else {
-          proxyPort = '443';
-        }
-      }	
-    }
+    // WebSocket 连接处理
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
 
-    // 创建 WebSocket 服务器
-    const wss = new WebSocket.Server({ noServer: true });
+    server.accept();
 
-    // 处理 WebSocket 连接
-    wss.on('connection', handleVLESSConnection);
+    // 设置 WebSocket 处理器
+    setupWebSocket(server, url);
 
-    // 处理 WebSocket 升级
-    return await handleWebSocketUpgrade(event, wss);
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
 
   } catch (err) {
     console.error('Error:', err);
     return { statusCode: 500, body: 'Internal Server Error' };
   }
 };
+
+// 添加详细日志
+function setupWebSocket(ws, url) {
+  let address = "";
+  let portWithRandomLog = "";
+
+  const log = (info, event) => {
+    console.log(`[${address}:${portWithRandomLog}] ${info}`, event || "");
+    // Netlify 会收集 console.log 的输出
+  };
+
+  // 添加更多关键点的日志
+  ws.addEventListener('message', (event) => {
+    log('Received message', event.data);
+  });
+
+  ws.addEventListener('error', (err) => {
+    console.error('WebSocket error:', err);
+  });
+
+  ws.addEventListener('close', () => {
+    log('WebSocket closed');
+  });
+
+  // 创建可读流
+  const readableStream = new ReadableStream({
+    start(controller) {
+      ws.addEventListener('message', (event) => {
+        const message = event.data;
+        controller.enqueue(message);
+      });
+
+      ws.addEventListener('close', () => {
+        controller.close();
+      });
+
+      ws.addEventListener('error', (err) => {
+        controller.error(err);
+      });
+    },
+  });
+
+  // 处理 VLESS 协议数据
+  readableStream.pipeTo(new WritableStream({
+    async write(chunk) {
+      const {
+        hasError,
+        message,
+        portRemote = 443,
+        addressRemote = "",
+        rawDataIndex,
+        vlessVersion = new Uint8Array([0, 0]),
+        isUDP,
+      } = await processVLESSHeader(chunk, userID);
+
+      if (hasError) {
+        throw new Error(message);
+      }
+
+      address = addressRemote;
+      portWithRandomLog = `${portRemote}--${Math.random()} ${isUDP ? "udp " : "tcp "}`;
+
+      const vlessResponseHeader = new Uint8Array([vlessVersion[0], 0]);
+      const rawClientData = chunk.slice(rawDataIndex);
+
+      // 处理数据传输
+      if (isUDP && portRemote === 53) {
+        // DNS 查询处理
+        handleUDPDNS(ws, vlessResponseHeader, rawClientData);
+      } else {
+        // TCP 连接处理
+        handleTCPConnection(ws, addressRemote, portRemote, rawClientData, vlessResponseHeader);
+      }
+    }
+  })).catch((err) => {
+    console.error('Stream processing error:', err);
+    ws.close();
+  });
+}
+
+// 在关键函数中添加日志
+async function handleTCPConnection(ws, address, port, data, responseHeader) {
+  console.log(`Attempting connection to ${address}:${port}`);
+  
+  const socket = net.createConnection({
+    host: address,
+    port: port
+  });
+
+  socket.on('connect', () => {
+    console.log(`Successfully connected to ${address}:${port}`);
+    ws.send(responseHeader);
+    socket.write(data);
+  });
+
+  socket.on('data', (chunk) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(chunk);
+    }
+  });
+
+  socket.on('end', () => ws.close());
+  socket.on('error', (err) => {
+    console.error('Socket error:', err);
+    ws.close();
+  });
+
+  ws.on('message', (msg) => socket.write(msg));
+  ws.on('close', () => socket.end());
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
+    socket.end();
+  });
+}
 
 // 处理 VLESS 协议连接
 function handleVLESSConnection(ws) {
