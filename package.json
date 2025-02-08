@@ -1,9 +1,12 @@
 {
-  "name": "my-proxy",
+  "name": "netlify-vless",
   "version": "1.0.0",
   "description": "A simple WebSocket proxy for Netlify Functions",
   "dependencies": {
-    "ws": "^8.13.0",      
-    "net": "^1.0.2"       
+    "ws": "^8.5.0",
+    "net": "^1.0.2"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.0.0"
   }
 }

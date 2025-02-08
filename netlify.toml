@@ -1,8 +1,13 @@
 [build]
-  functions = "functions"  # 指定 Netlify Functions 目录
+  functions = "functions"
+  publish = "public"
+
+[functions]
+  directory = "functions"
+  node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/.netlify/functions/proxy"
-  to = "/.netlify/functions/proxy"
+  from = "/vless/*"
+  to = "/.netlify/functions/vless/:splat"
   status = 200
   force = true
