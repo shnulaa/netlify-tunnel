@@ -12,7 +12,42 @@ if (!isValidUUID(userID)) {
 }
 
 exports.handler = async (event, context) => {
+  console.log('Request headers:', event.headers);
+  console.log('Request path:', event.path);
+  
   try {
+    // 处理 WebSocket 升级请求
+    if (event.headers.upgrade && event.headers.upgrade.toLowerCase() === 'websocket') {
+      console.log('Processing WebSocket upgrade request');
+      
+      const wsServer = new WebSocket.Server({ 
+        noServer: true,
+        perMessageDeflate: false
+      });
+
+      wsServer.on('connection', (ws, req) => {
+        console.log('WebSocket connected');
+        handleVLESSConnection(ws);
+      });
+
+      // 返回 WebSocket 升级响应
+      const key = event.headers['sec-websocket-key'];
+      const accept = crypto
+        .createHash('sha1')
+        .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+        .digest('base64');
+
+      return {
+        statusCode: 101,
+        headers: {
+          'Upgrade': 'websocket',
+          'Connection': 'Upgrade', 
+          'Sec-WebSocket-Accept': accept
+        }
+      };
+    }
+
+    // 处理普通 HTTP 请求
     const url = new URL(event.rawUrl);
     // 检查是否为 WebSocket 请求
     if (!event.headers.upgrade || event.headers.upgrade !== "websocket") {
@@ -194,6 +229,8 @@ function handleVLESSConnection(ws) {
 
   ws.on('message', async (message) => {
     try {
+      console.log('Received message length:', message.length);
+      
       // 解析 VLESS 协议头
       const {
         version,
@@ -217,12 +254,14 @@ function handleVLESSConnection(ws) {
         return;
       }
 
+      console.log(`Connecting to ${address}:${port}`);
+
       // 发送 VLESS 响应
       const response = buildVLESSResponse(version);
       ws.send(response);
 
-      // 处理后续数据传输
-      handleDataTransfer(ws, command, address, port);
+      // 处理数据传输
+      await handleTCPConnection(ws, address, port);
 
     } catch (err) {
       console.error('Error handling message:', err);
@@ -230,8 +269,12 @@ function handleVLESSConnection(ws) {
     }
   });
 
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
+  });
+
   ws.on('close', () => {
-    console.log('VLESS connection closed');
+    console.log('WebSocket closed');
   });
 }
 

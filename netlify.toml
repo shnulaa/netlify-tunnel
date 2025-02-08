@@ -6,15 +6,18 @@
   directory = "functions"
   node_bundler = "esbuild"
   external_node_modules = ["ws"]
-  included_files = ["functions/**/*.js"]
 
 [build.environment]
   NODE_VERSION = "18"
-  NODE_ENV = "development"
-  DEBUG = "true"
 
 [[redirects]]
-  from = "/vless/*"
-  to = "/.netlify/functions/vless/:splat"
+  from = "/*"
+  to = "/.netlify/functions/vless"
   status = 200
   force = true
+  conditions = {Path = "/.netlify/functions/vless"}
+
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
