@@ -8,8 +8,8 @@ exports.handler = async (event, context) => {
   }
 
   // 你的境外服务器的地址和端口（例如 Shadowsocks、V2Ray 服务器）
-  const targetHost = 'your_remote_server_address'; // 替换为你的服务器地址
-  const targetPort = 12345;                     // 替换为你的服务器端口
+  const targetHost = 'tunnel-liuyq.netlify.app'; // 替换为你的服务器地址
+  const targetPort = 443;                     // 替换为你的服务器端口
 
   const wss = new WebSocket.Server({ noServer: true });
 
