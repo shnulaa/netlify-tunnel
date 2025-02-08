@@ -2,6 +2,9 @@
   "name": "netlify-vless",
   "version": "1.0.0",
   "description": "A simple WebSocket proxy for Netlify Functions",
+  "scripts": {
+    "build": "mkdir -p public"
+  },
   "dependencies": {
     "ws": "^8.5.0",
     "net": "^1.0.2"

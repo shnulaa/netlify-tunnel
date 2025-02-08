@@ -1,10 +1,14 @@
 [build]
-  functions = "functions"
   publish = "public"
+  functions = "functions"
 
 [functions]
   directory = "functions"
   node_bundler = "esbuild"
+  external_node_modules = ["ws"]
+
+[build.environment]
+  NODE_VERSION = "18"
 
 [[redirects]]
   from = "/vless/*"
