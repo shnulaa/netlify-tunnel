@@ -2,6 +2,11 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 const net = require('net');
 
+// 添加日志函数
+function logRequest(message, data = '') {
+  console.log(`[${new Date().toISOString()}] ${message}`, data);
+}
+
 // VLESS 协议配置
 const userID = "86c50e3a-5b87-49dd-bd20-03c7f2735e40"; // 替换为你的 UUID
 // 移除 Cloudflare 相关的 CDN IP 配置
@@ -12,13 +17,16 @@ if (!isValidUUID(userID)) {
 }
 
 exports.handler = async (event, context) => {
-  console.log('Request headers:', event.headers);
-  console.log('Request path:', event.path);
-  
+  logRequest('Received request:', {
+    method: event.httpMethod,
+    path: event.path,
+    headers: event.headers,
+  });
+
   try {
     // 处理 WebSocket 升级请求
     if (event.headers.upgrade && event.headers.upgrade.toLowerCase() === 'websocket') {
-      console.log('Processing WebSocket upgrade request');
+      logRequest('WebSocket upgrade request received');
       
       const wsServer = new WebSocket.Server({ 
         noServer: true,
@@ -26,16 +34,37 @@ exports.handler = async (event, context) => {
       });
 
       wsServer.on('connection', (ws, req) => {
-        console.log('WebSocket connected');
+        logRequest('WebSocket connected');
+        
+        ws.on('message', (msg) => {
+          logRequest('WebSocket message received', msg.length);
+        });
+
+        ws.on('error', (err) => {
+          logRequest('WebSocket error:', err.message);
+        });
+
+        ws.on('close', () => {
+          logRequest('WebSocket closed');
+        });
+
         handleVLESSConnection(ws);
+      });
+
+      wsServer.on('error', (err) => {
+        logRequest('WebSocket server error:', err.message);
       });
 
       // 返回 WebSocket 升级响应
       const key = event.headers['sec-websocket-key'];
+      logRequest('WebSocket key:', key);
+
       const accept = crypto
         .createHash('sha1')
         .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
         .digest('base64');
+
+      logRequest('WebSocket accept key generated:', accept);
 
       return {
         statusCode: 101,
@@ -104,8 +133,14 @@ exports.handler = async (event, context) => {
     });
 
   } catch (err) {
-    console.error('Error:', err);
-    return { statusCode: 500, body: 'Internal Server Error' };
+    logRequest('Error:', err.stack || err.message);
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ 
+        error: err.message,
+        stack: err.stack 
+      })
+    };
   }
 };
 
@@ -190,7 +225,7 @@ function setupWebSocket(ws, url) {
 
 // 在关键函数中添加日志
 async function handleTCPConnection(ws, address, port, data, responseHeader) {
-  console.log(`Attempting connection to ${address}:${port}`);
+  logRequest(`Creating TCP connection to ${address}:${port}`);
   
   const socket = net.createConnection({
     host: address,
@@ -198,20 +233,32 @@ async function handleTCPConnection(ws, address, port, data, responseHeader) {
   });
 
   socket.on('connect', () => {
-    console.log(`Successfully connected to ${address}:${port}`);
-    ws.send(responseHeader);
-    socket.write(data);
-  });
-
-  socket.on('data', (chunk) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(chunk);
+    logRequest(`TCP connected to ${address}:${port}`);
+    if (responseHeader) {
+      ws.send(responseHeader);
+      logRequest('Sent response header');
+    }
+    if (data) {
+      socket.write(data);
+      logRequest('Sent initial data');
     }
   });
 
-  socket.on('end', () => ws.close());
+  socket.on('data', (chunk) => {
+    logRequest(`Received ${chunk.length} bytes from target`);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(chunk);
+      logRequest(`Sent ${chunk.length} bytes to client`);
+    }
+  });
+
+  socket.on('end', () => {
+    logRequest('TCP connection ended');
+    ws.close();
+  });
+
   socket.on('error', (err) => {
-    console.error('Socket error:', err);
+    logRequest('TCP socket error:', err.message);
     ws.close();
   });
 
@@ -225,46 +272,39 @@ async function handleTCPConnection(ws, address, port, data, responseHeader) {
 
 // 处理 VLESS 协议连接
 function handleVLESSConnection(ws) {
-  console.log('New VLESS connection');
+  logRequest('New VLESS connection established');
 
   ws.on('message', async (message) => {
     try {
-      console.log('Received message length:', message.length);
+      logRequest('Parsing VLESS header');
       
-      // 解析 VLESS 协议头
-      const {
-        version,
-        uuid,
-        command,
-        port,
-        address,
-        error
-      } = parseVLESSHeader(message);
+      const header = parseVLESSHeader(message);
+      logRequest('VLESS header parsed:', header);
 
-      if (error) {
-        console.error('Invalid VLESS header:', error);
+      if (header.error) {
+        logRequest('Invalid VLESS header:', header.error);
         ws.close();
         return;
       }
 
-      // 验证 UUID
-      if (uuid !== userID) {
-        console.error('Invalid UUID');
+      if (header.uuid !== userID) {
+        logRequest('Invalid UUID:', header.uuid);
         ws.close();
         return;
       }
 
-      console.log(`Connecting to ${address}:${port}`);
+      logRequest(`Connecting to ${header.address}:${header.port}`);
 
       // 发送 VLESS 响应
-      const response = buildVLESSResponse(version);
+      const response = buildVLESSResponse(header.version);
       ws.send(response);
+      logRequest('VLESS response sent');
 
       // 处理数据传输
-      await handleTCPConnection(ws, address, port);
+      await handleTCPConnection(ws, header.address, header.port);
 
     } catch (err) {
-      console.error('Error handling message:', err);
+      logRequest('Error handling message:', err.stack);
       ws.close();
     }
   });
