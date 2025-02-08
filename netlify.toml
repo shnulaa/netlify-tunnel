@@ -9,7 +9,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  DEBUG = "*"  # 启用所有调试日志
+  # DEBUG = "*"  # 生产环境中建议删除或设置更具体的值
 
 [dev]
   framework = "#static"
@@ -18,13 +18,6 @@
   publish = "public"
   autoLaunch = false
   debug = true
-
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/vless"
-  status = 200
-  force = true
-  conditions = {Path = "/.netlify/functions/vless"}
 
 [[redirects]]
   from = "/"
