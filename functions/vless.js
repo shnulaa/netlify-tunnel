@@ -4,38 +4,8 @@ const net = require('net');
 
 // VLESS 协议配置
 const userID = "86c50e3a-5b87-49dd-bd20-03c7f2735e40"; // 替换为你的 UUID
-const proxyIPs = ["ts.hpc.tw"];
-const cn_hostnames = [''];
-let CDNIP = 'www.visa.com.sg';
-let IP1 = 'www.visa.com';
-let IP2 = 'cis.visa.com';
-let IP3 = 'africa.visa.com';
-let IP4 = 'www.visa.com.sg';
-let IP5 = 'www.visaeurope.at';
-let IP6 = 'www.visa.com.mt';
-let IP7 = 'qa.visamiddleeast.com';
-let IP8 = 'usa.visa.com';
-let IP9 = 'myanmar.visa.com';
-let IP10 = 'www.visa.com.tw';
-let IP11 = 'www.visaeurope.ch';
-let IP12 = 'www.visa.com.br';
-let IP13 = 'www.visasoutheasteurope.com';
-let PT1 = '80';
-let PT2 = '8080';
-let PT3 = '8880';
-let PT4 = '2052';
-let PT5 = '2082';
-let PT6 = '2086';
-let PT7 = '2095';
-let PT8 = '443';
-let PT9 = '8443';
-let PT10 = '2053';
-let PT11 = '2083';
-let PT12 = '2087';
-let PT13 = '2096';
-
-let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
-let proxyPort = proxyIP.includes(':') ? proxyIP.split(':')[1] : '443';
+// 移除 Cloudflare 相关的 CDN IP 配置
+const hostName = process.env.URL || 'tunnel-liuyq.netlify.app'; // 使用 Netlify 域名
 
 if (!isValidUUID(userID)) {
   throw new Error("uuid is not valid");
@@ -43,14 +13,62 @@ if (!isValidUUID(userID)) {
 
 exports.handler = async (event, context) => {
   try {
+    const url = new URL(event.rawUrl);
     // 检查是否为 WebSocket 请求
-    if (event.headers.upgrade !== 'websocket') {
-      const vlessConfig = getVLESSConfig(userID, event.headers.host);
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'text/html' },
-        body: vlessConfig
-      };
+    if (!event.headers.upgrade || event.headers.upgrade !== "websocket") {
+      switch (url.pathname) {
+        case `/${userID}`: {
+          const vlessConfig = getVLESSConfig(userID, event.headers.host);
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "text/html;charset=utf-8" },
+            body: vlessConfig
+          };
+        }
+        case `/${userID}/ty`: {
+          const tyConfig = gettyConfig(userID, event.headers.host);
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: tyConfig
+          };
+        }
+        case `/${userID}/cl`: {
+          const clConfig = getclConfig(userID, event.headers.host); 
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: clConfig
+          };
+        }
+        case `/${userID}/sb`: {
+          const sbConfig = getsbConfig(userID, event.headers.host);
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json;charset=utf-8" },
+            body: sbConfig
+          };
+        }
+        default:
+          return { statusCode: 404, body: 'Not Found' };
+      }
+    }
+
+    // WebSocket 处理
+    if(url.pathname.includes('/pyip=')) {
+      const tmp_ip = url.pathname.split("=")[1];
+      if(isValidIP(tmp_ip)) {
+        proxyIP = tmp_ip;
+        if (proxyIP.includes(']:')) {
+          let lastColonIndex = proxyIP.lastIndexOf(':');
+          proxyPort = proxyIP.slice(lastColonIndex + 1);
+          proxyIP = proxyIP.slice(0, lastColonIndex);	
+        } else if (!proxyIP.includes(']:') && !proxyIP.includes(']')) {
+          [proxyIP, proxyPort = '443'] = proxyIP.split(':');
+        } else {
+          proxyPort = '443';
+        }
+      }	
     }
 
     // 创建 WebSocket 服务器
@@ -177,7 +195,11 @@ function handleDataTransfer(ws, command, address, port) {
 
 // 处理 TCP 数据传输
 function handleTCPTransfer(ws, address, port) {
-  const targetSocket = net.createConnection({ host: address, port: port });
+  // 直接连接目标地址,不使用代理
+  const targetSocket = net.createConnection({
+    host: address,
+    port: port 
+  });
 
   targetSocket.on('connect', () => {
     console.log(`Connected to ${address}:${port}`);
@@ -214,33 +236,51 @@ function handleTCPTransfer(ws, address, port) {
 
 // 获取 VLESS 配置信息
 function getVLESSConfig(userID, host) {
-  const config = {
-    protocol: 'vless',
-    uuid: userID,
-    address: host,
-    port: 443,
-    encryption: 'none',
-    flow: '',
-    network: 'ws',
-    security: 'tls',
-    path: '/vless',
-  };
+  // 直接使用 Netlify 域名
+  const vlessws = `vless://${userID}@${host}:443?encryption=none&security=none&type=ws&host=${host}&path=%2F%3Fed%3D2560#${host}`;
+  const vlesswstls = `vless://${userID}@${host}:443?encryption=none&security=tls&type=ws&host=${host}&sni=${host}&fp=random&path=%2F%3Fed%3D2560#${host}`;
+  
+  const note = `Netlify VLESS 代理服务\n当前域名: ${host}`;
+  const ty = `https://${host}/${userID}/ty`;
+  const cl = `https://${host}/${userID}/cl`;
+  const sb = `https://${host}/${userID}/sb`;
 
-  const vlessURL = `vless://${userID}@${host}:443?encryption=none&security=tls&type=ws&path=/vless#${host}`;
-
+  // 返回配置页面 HTML
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <title>VLESS Configuration</title>
+  <meta charset="utf-8">
 </head>
 <body>
-  <h2>VLESS Configuration</h2>
-  <pre>${JSON.stringify(config, null, 2)}</pre>
-  <p>VLESS URL: <a href="${vlessURL}">${vlessURL}</a></p>
+  <h2>VLESS 配置信息</h2>
+  <p>${note.replace(/\n/g, '<br>')}</p>
+  <h3>WebSocket (无 TLS)</h3>
+  <pre>${vlessws}</pre>
+  <h3>WebSocket + TLS</h3>
+  <pre>${vlesswstls}</pre>
+  <h3>订阅链接</h3>
+  <p>通用订阅: <a href="${ty}">${ty}</a></p>
+  <p>Clash 订阅: <a href="${cl}">${cl}</a></p>
+  <p>Sing-box 订阅: <a href="${sb}">${sb}</a></p>
 </body>
 </html>
-  `;
+`;
+}
+
+// 添加新的配置生成函数
+function gettyConfig(userID, host) {
+  const vlessshare = btoa(`vless://${userID}@${IP1}:${PT1}?encryption=none&security=none&fp=randomized&type=ws&host=${host}&path=%2F%3Fed%3D2560#CF_V1_${IP1}_${PT1}\n...`);
+  return vlessshare;
+}
+
+function getclConfig(userID, host) {
+  // ...clash config generation code...
+}
+
+function getsbConfig(userID, host) {
+  // ...sing-box config generation code...
 }
 
 // 处理 WebSocket 升级
@@ -265,5 +305,10 @@ async function handleWebSocketUpgrade(event, wss) {
 function isValidUUID(uuid) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
+}
+
+function isValidIP(ip) {
+  const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  return ipRegex.test(ip);
 }
 
